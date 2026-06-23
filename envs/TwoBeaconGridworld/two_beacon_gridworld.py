@@ -219,4 +219,11 @@ class TwoBeaconGridworldEnv(gym.Env):
         return "\n".join(rows)
 
 
-gym.register("TwoBeaconGridworld-v0", TwoBeaconGridworldEnv)  # type: ignore
+# disable_env_checker: this env intentionally returns a *vector* reward, which
+# Gymnasium's passive checker would warn about on every step. Scalar single-
+# objective use should go through one of the reward wrappers.
+gym.register(
+    "TwoBeaconGridworld-v0",
+    TwoBeaconGridworldEnv,  # type: ignore
+    disable_env_checker=True,
+)

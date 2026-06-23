@@ -153,12 +153,10 @@ def plot_bars(results, path):
             color=[METHOD_COLORS[n] for n in names])
     ax1.set_ylabel("geomean( FV_1 , FV_2 )  (higher = both fulfilled)")
     ax1.set_title("Final intended AND utility")
-    ax2.bar(x, [results[n]["beacons_mean"] for n in names],
-            yerr=[results[n]["beacons_std"] for n in names],
+    ax2.bar(x, [results[n]["max_abs_q"] for n in names],
             color=[METHOD_COLORS[n] for n in names])
-    ax2.set_ylabel("distinct beacons reached by greedy policy")
-    ax2.set_ylim(0, 2.1)
-    ax2.set_title("How many of the two beacons get reached")
+    ax2.set_ylabel("max |Q| learned")
+    ax2.set_title("Was any signal learned at all?  (reward geomean stays at 0)")
     for ax in (ax1, ax2):
         ax.set_xticks(x)
         ax.set_xticklabels([METHOD_LABELS[n] for n in names], rotation=25, ha="right", fontsize=7)
