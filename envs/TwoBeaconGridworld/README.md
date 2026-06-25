@@ -141,6 +141,26 @@ Read it top-to-bottom:
 `results/visitations.png` show the same story visually — the Q-level visitation
 heatmap lights up *both* corners, while the reward-level ones learn at most one.
 
+### Watch the policies (animated rollout)
+
+```bash
+python envs/TwoBeaconGridworld/render_rollout.py     # writes results/rollouts.gif
+```
+
+This trains each method and renders a side-by-side GIF of every greedy policy
+moving on the grid (agent marker + path trail + a live beacon-hit counter).
+
+![greedy rollouts](results/rollouts.gif)
+
+You can see the contrast directly: the **Q-level FPL (decoupled)** panel traces a
+loop that connects *both* beacons (a shuttle), the **smoothed**/**linear**
+baselines drive straight to one beacon and camp on it, the **reward geomean**
+panel wanders at random (it never learned a signal), and the **on-policy**
+ablation oscillates in the middle without committing. Useful flags:
+`--methods qlevel_fpl reward_linear` (subset), `--rollout-steps`, `--fps`,
+`--seed`, `--walls-mode four_rooms`. The env itself also supports a text render
+via `render_mode="ansi"`.
+
 ### An honest nuance (decoupled vs on-policy critics)
 
 With *instantaneous, non-overlapping* rewards the true AND-optimum is a **shuttle**
