@@ -39,6 +39,26 @@ SHORT_LABELS = {
 }
 
 
+def action_values(agent, s):
+    """Per-action value driving the greedy policy (composed utility for the
+    Q-level agent, the scalar Q-row for the reward-level agents)."""
+    if hasattr(agent, "utilities"):
+        return np.asarray(agent.utilities(s), dtype=float)
+    return np.asarray(agent.q[s], dtype=float)
+
+
+def greedy_determinism(agent, env):
+    """Percent of cells with a single greedy action (the rest are ties broken at
+    random). 0% means a flat table -> a pure random walk."""
+    uniq = total = 0
+    for (x, y) in env._free_cells:
+        v = action_values(agent, pos_to_state((x, y), env.N))
+        total += 1
+        if int(np.sum(v >= v.max() - 1e-12)) == 1:
+            uniq += 1
+    return 100.0 * uniq / max(total, 1)
+
+
 def rollout(agent, env, steps, rng):
     """Run the greedy policy and record the path and running beacon-hit tally."""
     _, info = env.reset()
@@ -110,10 +130,12 @@ def main():
         cfg = TrainConfig(episodes=args.episodes, gamma=args.gamma, lr=args.lr, seed=args.seed)
         agent = make_agent(name, n_states, args.eps_smooth)
         train(agent, env, cfg, eval_every=10 ** 9)  # train only; skip periodic eval
+        det = greedy_determinism(agent, env)
         rng = np.random.default_rng(args.seed + 999)
         xs, ys, tally = rollout(agent, env, args.rollout_steps, rng)
-        paths[name] = {"env": env, "xs": xs, "ys": ys, "tally": tally}
-        print(f"{name:<22} final beacon hits -> 1:{tally[-1][0]:>2}  2:{tally[-1][1]:>2}  "
+        paths[name] = {"env": env, "xs": xs, "ys": ys, "tally": tally, "det": det}
+        print(f"{name:<22} {det:>3.0f}% deterministic   final beacon hits -> "
+              f"1:{tally[-1][0]:>2}  2:{tally[-1][1]:>2}  "
               f"({'BOTH' if min(tally[-1]) > 0 else 'one/none'})")
 
     n_frames = max(len(p["xs"]) for p in paths.values())
@@ -142,7 +164,8 @@ def main():
             trail.set_data(p["xs"][:idx + 1], p["ys"][:idx + 1])
             agent_dot.set_data([p["xs"][idx]], [p["ys"][idx]])
             h1, h2 = p["tally"][idx]
-            title.set_text(f"{SHORT_LABELS.get(name, name)}\nbeacon hits  1:{h1}  2:{h2}")
+            title.set_text(f"{SHORT_LABELS.get(name, name)}  ({p['det']:.0f}% det.)\n"
+                           f"beacon hits  1:{h1}  2:{h2}")
             changed += [trail, agent_dot, title]
         return changed
 
@@ -153,7 +176,11 @@ def main():
                      fontsize=11)
         return update(f)
 
-    fig.tight_layout(rect=(0, 0, 1, 0.93))
+    fig.text(0.5, 0.01,
+             "Greedy & deterministic given the seed; ties (equal-value actions) are broken at "
+             "random. 0% det. = flat table = pure random walk.",
+             ha="center", fontsize=7.5, style="italic")
+    fig.tight_layout(rect=(0, 0.04, 1, 0.93))
     anim = FuncAnimation(fig, update_with_step, frames=n_frames, blit=False)
     out = args.out or os.path.join(RESULTS_DIR, "rollouts.gif")
     anim.save(out, writer=PillowWriter(fps=args.fps))

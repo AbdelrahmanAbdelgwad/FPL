@@ -161,6 +161,38 @@ ablation oscillates in the middle without committing. Useful flags:
 `--seed`, `--walls-mode four_rooms`. The env itself also supports a text render
 via `render_mode="ansi"`.
 
+### Why a "greedy" rollout can still look random
+
+The **state** is the agent's grid cell (`state = x*N + y`), the **actions** are
+the four moves `up/down/left/right`, and the greedy rule is `random_argmax`:
+take the highest-value action, but **break ties uniformly at random**. The
+rollout is therefore *deterministic given the seed* (same seed → identical path);
+the only stochasticity is that tie-break.
+
+That single rule explains the GIF:
+
+- **`reward geomean` learned an all-zero table** (`max|Q| = 0`, because its
+  composed reward is `0` on every step). Every cell is then a 4-way tie, so the
+  greedy policy is a **uniform random walk — by construction**. Its panel *should*
+  look random; that is the result, not a bug.
+- The other methods are 64–100% deterministic; their few ties sit at symmetric
+  cells (e.g. the Q-level policy's middle column, where "up to beacon 1" and
+  "down to beacon 2" are genuinely equal — and that random tie-break is exactly
+  what lets it alternate between the two beacons).
+
+The static **policy map** shows this at a glance — one arrow per cell for the
+unique greedy action, a circle where actions tie:
+
+```bash
+python envs/TwoBeaconGridworld/policy_map.py          # writes results/policies.png
+```
+
+![greedy policies](results/policies.png)
+
+`reward geomean` is one solid field of ties (0% deterministic); the Q-level
+policy is a structured flow into *both* beacons. Each GIF panel is now labelled
+with its determinism %, so a wandering panel is self-explanatory.
+
 ### An honest nuance (decoupled vs on-policy critics)
 
 With *instantaneous, non-overlapping* rewards the true AND-optimum is a **shuttle**
