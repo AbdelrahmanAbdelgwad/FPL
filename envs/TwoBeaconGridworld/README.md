@@ -73,9 +73,34 @@ composed**:
   per beacon — `FQ_k = (1-γ)·E[Σ γ^t r_k]` — and composes them with
   `q_level_fpl_and` only when choosing actions, exactly the FPL/BPG move.
 
+### Setup
+
+This experiment only needs `numpy`, `matplotlib` and `gymnasium`, all of which
+ship with the repo's standard environments — so use the same install flow as the
+other envs (no extra `pip install` needed):
+
 ```bash
-python envs/TwoBeaconGridworld/run_experiment.py             # N=7 default
-python envs/TwoBeaconGridworld/run_experiment.py --N 5 --episodes 2000 --seeds 5
+# Conda (Windows-friendly)
+conda env create --file environment.yml   # first time only; pins Python 3.9
+conda activate cmorl_env
+
+# or Nix
+nix develop --impure
+```
+
+The code is pure-CPU and Python 3.9+ compatible; it does **not** require
+TensorFlow, so it still runs if you only install the three packages above into a
+bare environment.
+
+### Run
+
+Run the script directly from the repo root (same convention as
+`envs/Pendulum/train_pendulum.py` — the script's folder is put on `sys.path`, so
+no editable install is strictly required just to run it):
+
+```bash
+python envs/TwoBeaconGridworld/run_experiment.py             # N=5 default
+python envs/TwoBeaconGridworld/run_experiment.py --N 7 --episodes 2000 --seeds 5
 python envs/TwoBeaconGridworld/run_experiment.py --walls-mode four_rooms
 ```
 

@@ -10,6 +10,7 @@ setup(
     install_requires=[
         'gymnasium[classical_control]',
         'numpy',
+        'matplotlib',
         'tensorflow',
         'tqdm'
     ],
