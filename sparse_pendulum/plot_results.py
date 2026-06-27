@@ -81,25 +81,36 @@ def main():
     fig.savefig(out1, dpi=130)
     plt.close(fig)
 
-    # --- sample-efficiency summary: final upright fraction vs band ---
-    fig, ax = plt.subplots(figsize=(7, 5))
-    for arm in arms:
-        xs, ys = [], []
-        for band in bands:
+    # --- per-seed outcomes (honest): every seed's best upright, by band & arm ---
+    # Plotting every seed (not a mean line across uneven seed counts) avoids
+    # reading a "trend" through single-seed bands. The story is the bimodal
+    # solve/fail split, not a smooth average.
+    rng = np.random.default_rng(0)
+    fig, ax = plt.subplots(figsize=(max(7, 2.2 * len(bands)), 5))
+    xticks, xlabels = [], []
+    for j, band in enumerate(bands):
+        for k, arm in enumerate(arms):
             if (band, arm) not in runs:
                 continue
-            finals = [curve[-1]["angle_frac"] for curve in runs[(band, arm)]]
-            xs.append(band)
-            ys.append(np.mean(finals))
-        ax.plot(xs, ys, "o-", color=ARM_COLORS[arm], lw=2, label=ARM_LABELS[arm])
-    ax.invert_xaxis()  # sparser to the right
-    ax.set_xlabel("band  (← denser     sparser →)")
-    ax.set_ylabel("final fraction of time upright")
-    ax.set_title("Where does reward-level composition break as the objective gets sparse?")
-    ax.grid(alpha=0.3)
-    ax.legend()
+            finals = [max(e["angle_frac"] for e in curve) for curve in runs[(band, arm)]]
+            x = j + (k - (len(arms) - 1) / 2) * 0.28
+            ax.scatter(x + rng.uniform(-0.05, 0.05, len(finals)), finals,
+                       color=ARM_COLORS[arm], s=70, zorder=3,
+                       label=ARM_LABELS[arm] if j == 0 else None)
+            ax.scatter([x], [np.mean(finals)], color="black", marker="_", s=600, zorder=4)
+            ax.annotate(f"n={len(finals)}", (x, -0.06), ha="center", fontsize=7, annotation_clip=False)
+        xticks.append(j)
+        xlabels.append(f"band {band}\n(±{band*180:.0f}°)")
+    ax.axhline(0.5, ls="--", color="0.6", lw=1, label="'solved' threshold")
+    ax.set_xticks(xticks)
+    ax.set_xticklabels(xlabels)
+    ax.set_ylim(-0.02, 1.0)
+    ax.set_ylabel("best fraction of time upright (per seed)")
+    ax.set_title("Per-seed outcomes (— = mean). Read the split, not a trend across bands.")
+    ax.grid(alpha=0.3, axis="y")
+    ax.legend(fontsize=8, loc="center left")
     fig.tight_layout()
-    out2 = os.path.join(RESULTS_DIR, "sparsity_summary.png")
+    out2 = os.path.join(RESULTS_DIR, "per_seed_outcomes.png")
     fig.savefig(out2, dpi=130)
     plt.close(fig)
 

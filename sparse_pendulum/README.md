@@ -66,7 +66,7 @@ Results are written to `results/*.json`; `plot_results.py` makes the figures.
 
 Verified end-to-end under TensorFlow-CPU. These are **short, CPU-budget** runs
 (6 epochs ≈ 6k env steps each) — directional, not publication-grade — committed
-under `results/` with the figures (`learning_curves.png`, `sparsity_summary.png`):
+under `results/` with the figures (`learning_curves.png`, `per_seed_outcomes.png`, `band0.05_seeds.png`):
 
 | band (sparsity) | seeds | Q-level learns | reward-level learns |
 |---|---|---|---|
