@@ -24,10 +24,12 @@ RESULTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results"
 
 ARM_LABELS = {
     "qlevel": "Q-level geomean (BPG)",
+    "qlevel_linear": "Q-level linear (p=1, ablation)",
     "reward": "reward-level geomean",
     "reward_slack": "reward-level geomean (slack 0.1)",
 }
-ARM_COLORS = {"qlevel": "#2ca02c", "reward": "#d62728", "reward_slack": "#ff7f0e"}
+ARM_COLORS = {"qlevel": "#2ca02c", "qlevel_linear": "#17becf",
+              "reward": "#d62728", "reward_slack": "#ff7f0e"}
 
 
 def load():

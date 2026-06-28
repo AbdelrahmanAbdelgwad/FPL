@@ -52,9 +52,36 @@ python sparse_pendulum/run_sparsity_experiment.py \
 
 # fuller study (run in the conda/nix env, ideally on GPU):
 python sparse_pendulum/run_sparsity_experiment.py \
-    --bands 0.5 0.25 0.1 0.05 --arms qlevel reward reward_slack --seeds 3 --epochs 150
+    --bands 0.15 0.1 0.07 0.05 0.03 0.02 0.01 \
+    --arms qlevel qlevel_linear reward reward_slack --seeds 15 --epochs 150
 python sparse_pendulum/plot_results.py
 ```
+
+Arms: `qlevel` (geomean at the Q level, the proposed method), `reward` /
+`reward_slack` (geomean at the reward level, slack 0 / 0.1), and `qlevel_linear`
+— an **ablation** that composes the Q-values *linearly* (`p=1`) instead of with
+the geomean, to separate "compose at the Q level" from "the non-linear AND."
+
+## Mechanism — why it helps (training-free)
+
+```bash
+python sparse_pendulum/mechanism.py    # writes results/mechanism.png
+```
+
+This probes *why* the Q level helps, without training anything. It rolls out a
+uniform-random policy (an early replay buffer) and measures the learning signal
+each composition would hand the learner: the reward-level scalar
+`geomean(angle, actuation)` vs the Q-level proxy `geomean(FV_angle, FV_actuation)`,
+where `FV_k` is the normalized discounted return-to-go of objective `k`.
+
+The result (`mechanism.png`): the **reward-level** signal is non-zero only when
+the binary objective fires *this step*, so it exactly tracks the raw "fraction of
+the buffer with 1s" and **collapses toward 0 as the band shrinks** (~0.1% of
+transitions at ±1°). The **Q-level** signal stays dense (~7% at ±1°) because the
+discounted return spreads each rare upright event back across the states that
+lead to it. The density advantage grows from **~3× at ±54° to ~46× at ±1°** — the
+sparser the objective, the more composing-later helps. That is the quantity that
+explains the success-rate gap.
 
 `wandb` is set to `disabled` automatically; the BPG core also needs `tensorboard`
 installed (it writes `tf.summary` logs). Every arm is scored by the **same**

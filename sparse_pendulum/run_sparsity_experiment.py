@@ -41,7 +41,8 @@ import Pendulum  # noqa: E402
 RESULTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
 
 
-def build_hypers(seed: int, epochs: int, steps_per_epoch: int, start_steps: int = 1000):
+def build_hypers(seed: int, epochs: int, steps_per_epoch: int, start_steps: int = 1000,
+                 p_objectives: float = 0.0):
     from cmorl.rl_algs.ddpg.hyperparams import default_hypers
     hp = default_hypers()
     hp.seed = seed
@@ -57,7 +58,7 @@ def build_hypers(seed: int, epochs: int, steps_per_epoch: int, start_steps: int 
     hp.qd_power = 0.75
     hp.before_clip = 1.0
     hp.p_batch = 1.0
-    hp.p_objectives = 0.0  # geomean across objectives (AND) at the Q level
+    hp.p_objectives = p_objectives  # 0 = geomean (AND); 1 = linear, at the Q level
     hp.ac_kwargs = {"actor_hidden_sizes": [32, 32], "critic_hidden_sizes": [400, 300]}
     return hp
 
@@ -67,7 +68,10 @@ def train_arm(arm: str, band: float, seed: int, epochs: int, steps_per_epoch: in
     """Train one arm; return the evaluation curve (one entry per epoch)."""
     from cmorl.rl_algs.ddpg.ddpg import ddpg
 
-    hp = build_hypers(seed, epochs, steps_per_epoch, start_steps)
+    # qlevel_linear is the ablation: compose the Q-values *linearly* (p=1) instead
+    # of with the geomean, to separate "compose at the Q level" from "the AND".
+    p_objectives = 1.0 if arm == "qlevel_linear" else 0.0
+    hp = build_hypers(seed, epochs, steps_per_epoch, start_steps, p_objectives)
     curve: list[dict] = []
 
     def on_save(pi_network, _q_network, epoch):
@@ -79,11 +83,11 @@ def train_arm(arm: str, band: float, seed: int, epochs: int, steps_per_epoch: in
               f"upright={m['angle_frac']:.2f} actuation={m['actuation']:.2f} "
               f"AND={m['geomean']:.3f}", flush=True)
 
-    if arm == "qlevel":
+    if arm in ("qlevel", "qlevel_linear"):
         env_fn = lambda: Pendulum.PendulumEnv(g=10.0, setpoint=0.0)
-        ddpg(env_fn, experiment_name=f"qlevel_b{band}_s{seed}", hp=hp,
+        ddpg(env_fn, experiment_name=f"{arm}_b{band}_s{seed}", hp=hp,
              cmorl=make_cmorl(band), on_save=on_save,
-             experiment_description="Q-level geomean composition (BPG)")
+             experiment_description=f"Q-level composition (p_objectives={hp.p_objectives})")
     elif arm in ("reward", "reward_slack"):
         slack = 0.1 if arm == "reward_slack" else 0.0
         env_fn = lambda: RewardLevelWrapper(Pendulum.PendulumEnv(g=10.0, setpoint=0.0),
@@ -101,7 +105,7 @@ def main():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--bands", type=float, nargs="+", default=[0.3, 0.1])
     parser.add_argument("--arms", nargs="+", default=["qlevel", "reward"],
-                        choices=["qlevel", "reward", "reward_slack"])
+                        choices=["qlevel", "qlevel_linear", "reward", "reward_slack"])
     parser.add_argument("--seeds", type=int, default=1)
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--steps-per-epoch", type=int, default=1000)
