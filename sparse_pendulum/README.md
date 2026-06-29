@@ -1,128 +1,227 @@
 # Sparse-objective Pendulum: reward-level vs Q-level composition
 
-This experiment tests the original hypothesis — *does composing objectives at the
-**Q-value level** help when rewards are sparse?* — **in the regime where it can
-actually matter**: a gradient-based actor (BPG/DDPG) optimizing **simultaneous,
-competing** objectives, one of which is **sparse / binary**.
+Does composing objectives at the **Q-value level** (as Fulfillment Priority
+Logic / BPG do) help when one objective is **sparse**? This experiment tests that
+in the regime where it can actually matter — a gradient-based actor optimizing
+two **simultaneous, competing** objectives, one of them **binary/sparse** — and
+measures *why*.
 
-## Why here and not a gridworld
+**Bottom line:** yes, but it's a **sample-efficiency / reliability** effect, not a
+"reward-level is impossible" one. As the sparse objective gets harder, the
+reward-level learning signal collapses while the Q-level signal stays dense; in
+the regime where they diverge, the Q-level agent reliably solves the task while
+the reward-level agent often fails outright.
 
-A companion study (branch `claude/gallant-sagan-5yfwqm`, the `TwoBeaconGridworld`)
-showed that a *tabular* gridworld is the wrong testbed: there the policy learns by
-`argmax` (no gradient to smooth), and the only place reward-level composition is
-truly degenerate is a task whose optimum is a non-stationary orbit a memoryless
-table can't represent. The benefit of Q-level composition is about giving a
-**gradient-based learner a smooth, dense signal** out of sparse per-objective
+---
+
+## TL;DR — the result
+
+At a ±9° "upright" cone (`band=0.05`), 6 seeds, same training budget:
+
+![per-seed outcomes at band 0.05](results/band0.05_seeds.png)
+
+- **Q-level (BPG) solves 5/6 seeds; reward-level solves 3/6.** It's a **bimodal
+  solve/fail split**, not a small average gap — on the failing seeds the
+  reward-level agent never learns at all (stuck at ~6% time-upright, i.e. random).
+
+And the reason, measured without training any agent:
+
+![mechanism](results/mechanism.png)
+
+- The **reward-level** signal is non-zero only when the binary objective fires
+  *this step*, so it collapses toward 0 as the objective sparsifies. The
+  **Q-level** signal stays dense because each objective's *value* (discounted
+  return) spreads the rare events backward. The density advantage grows from
+  **~3× at ±54° to ~46× at ±1°**.
+
+---
+
+## Why Pendulum and not a gridworld
+
+A companion study (branch `claude/gallant-sagan-5yfwqm`, `TwoBeaconGridworld`)
+found a *tabular* gridworld is the **wrong** testbed: it learns by `argmax` (no
+gradient to smooth), and the only place reward-level composition is truly
+degenerate is a task whose optimum is a non-stationary orbit a memoryless table
+can't represent. The benefit of Q-level composition is about handing a
+**gradient-based learner a smooth, dense signal** built from sparse per-objective
 rewards — so the right testbed is continuous control with an actor network and
-**ongoing** (not sequential) competing objectives. That is exactly Pendulum.
+**ongoing competing** objectives. That is Pendulum.
 
-## Setup
+## The environment and objectives
 
-Two competing fulfillments on the pendulum:
+Two competing fulfillments in `[0, 1]` on the classic pendulum:
 
 | objective | signal | type |
 |---|---|---|
 | `angle` | `1` iff the pole is within `band` of upright, else `0` | **binary / sparse** |
-| `actuation` | `1 - (torque/max)^2` | dense |
+| `actuation` | `1 - (torque / max_torque)^2` | dense |
 
-`band` is the **sparsity knob**: large → upright fires often (dense-ish); small →
-it fires only very near the top (very sparse, "0 on the lower half").
+They compete: staying upright costs torque (lowering `actuation`), and the
+upright signal is binary so most states give *no* angle gradient. `band` is the
+**sparsity knob** — the half-width of the "counts as upright" cone, as a fraction
+of π:
 
-Both objectives are composed with the **geometric mean** (logical AND, `p = 0`).
-The arms differ **only in where that composition happens**:
+| band | upright cone | sparsity |
+|---|---|---|
+| 0.10 | ±18° | mild |
+| 0.05 | ±9° | moderate |
+| 0.02 | ±3.6° | extreme |
 
-| arm | how it composes | code path |
+Both objectives are composed with the **geometric mean** (logical AND, `p=0`).
+Everything else is held fixed; the experiment varies **only where the geomean is
+applied**.
+
+## The experiments
+
+Files in this directory:
+
+| file | what it does |
+|---|---|
+| `sparse_pendulum.py` | the fulfillments, the `RewardLevelWrapper`, the geomean, and the common evaluation. Building blocks; not run directly. |
+| `run_sparsity_experiment.py` | trains the arms and sweeps `band`; writes `results/*.json`. |
+| `mechanism.py` | **training-free** probe of *why* the Q level helps; writes `results/mechanism.png`. |
+| `plot_results.py` | turns the JSONs into `learning_curves.png` + `per_seed_outcomes.png`. |
+
+### 1. Sparsity sweep (`run_sparsity_experiment.py`)
+
+Trains agents that are identical except for **where the geomean composes the two
+objectives**:
+
+| arm | composition | code path |
 |---|---|---|
 | `qlevel` | geomean of the two **Q-values** in the actor loss (BPG) | `CMORL(...)`, `p_objectives = 0` |
 | `reward` | env returns `geomean(angle, actuation)` as a **scalar reward**, plain DDPG | `RewardLevelWrapper`, `cmorl = None` |
-| `reward_slack` | same, but geomean with `slack = 0.1` (Bassel's "never output exactly 0") | `RewardLevelWrapper(slack=0.1)` |
+| `reward_slack` | same, geomean with `slack = 0.1` ("never output exactly 0") | `RewardLevelWrapper(slack=0.1)` |
+| `qlevel_linear` | **ablation**: compose the Q-values *linearly* (`p=1`), not geomean | `CMORL(...)`, `p_objectives = 1` |
 
-The prediction: as `band → 0`, the **reward-level** scalar is `0` almost
-everywhere (no gradient toward upright until the agent stumbles onto the top),
-while the **Q-level** arm keeps a dense `angle` fulfillment-Q that bootstraps from
-the rare upright visits and composes into a usable actor gradient. So Q-level
-should degrade much more gracefully with sparsity.
+The `reward` vs `qlevel` pair isolates the one variable (composition location);
+`reward_slack` tests Bassel's smoothing alternative; `qlevel_linear` separates
+"compose at the Q level" from "the non-linear AND." Every arm is scored by the
+**same** evaluation — fraction of time upright, mean actuation, and their geomean
+— so the comparison is on the true objectives regardless of how each arm trained.
 
-## Run
+### 2. Mechanism probe (`mechanism.py`)
+
+Rolls out a uniform-random policy (an early replay buffer) and measures the
+*learning signal each composition would hand the learner*, with no training:
+
+- reward-level signal `s_r = geomean(angle(t), actuation(t))`
+- Q-level proxy `s_q = geomean(FV_angle(t), FV_actuation(t))`, where
+  `FV_k(t) = (1-γ)·Σ_{k≥t} γ^{k-t} r_k` is the normalized discounted return-to-go
+  of objective `k` — a Monte-Carlo stand-in for the fulfillment-Q a per-objective
+  critic would learn.
+
+It reports, vs `band`, the fraction of transitions carrying a non-zero signal and
+the Q/reward density ratio.
+
+### 3. Plots (`plot_results.py`)
+
+`learning_curves.png` (mean upright + AND vs steps, per band) and
+`per_seed_outcomes.png` (every seed's best result, with `n=` so single-seed bands
+aren't misread as a trend).
+
+## Results
+
+### Headline — `band=0.05` (±9°), 6 seeds, 6-epoch budget
+
+| | per-seed best fraction upright | solved (>0.5) |
+|---|---|---|
+| **Q-level (BPG)** | 0.93, 0.88, 0.94, 0.94, 0.13, 0.89 | **5 / 6** |
+| **reward-level** | 0.06, 0.20, 0.94, 0.94, 0.09, 0.94 | **3 / 6** |
+
+The Q-level mean curve sits clearly above reward-level, and the per-seed strip
+(top figure) shows the bimodal split: reward-level either solves it (~0.94) or
+completely fails (~0.06–0.20).
+
+### Across bands (single-seed probes for 0.1 and 0.02)
+
+![learning curves](results/learning_curves.png)
+![per-seed outcomes](results/per_seed_outcomes.png)
+
+- `band=0.1` (±18°): **both** arms learn — the top is hit often enough that even
+  the reward-level geomean gets signal.
+- `band=0.02` (±3.6°): single seed, both learn late and noisily — inconclusive at
+  one seed.
+- Only `band=0.05` has enough seeds to compare; treat 0.1/0.02 as context, not a
+  trend (they're `n=1`).
+
+### Why — the mechanism (`mechanism.png`, training-free)
+
+| band | cone | reward-level signal ≠0 | Q-level signal ≠0 | Q ÷ reward |
+|---|---|---|---|---|
+| 0.30 | ±54° | 11.3% | 35.1% | ~3× |
+| 0.10 | ±18° | 3.3%  | 16.2% | ~5× |
+| 0.05 | ±9°  | 1.4%  | 14.4% | ~10× |
+| 0.02 | ±4°  | 0.6%  | 11.1% | ~19× |
+| 0.005| ±1°  | 0.1%  | 6.9%  | ~46× |
+
+The reward-level signal exactly tracks the raw fire-rate (geomean is 0 unless the
+binary part fires *now*); the Q-level signal stays dense because returns
+propagate rare events. This is the quantity that explains the success-rate gap.
+
+## Setup
+
+Use the repo's standard environment (the BPG core needs TensorFlow; it also
+imports `wandb` — auto-disabled here — and `tensorboard` for `tf.summary`; plots
+need `matplotlib`):
 
 ```bash
-# quick local check (CPU, short — sanity, not a full result):
-python sparse_pendulum/run_sparsity_experiment.py \
-    --bands 0.1 --arms qlevel reward --seeds 1 --epochs 15 --steps-per-epoch 1000 --start-steps 600
+conda env create --file environment.yml && conda activate cmorl_env   # or: nix develop --impure
+pip install wandb tensorboard           # if not already present in the env
+```
 
-# fuller study (run in the conda/nix env, ideally on GPU):
+Everything runs on CPU. `WANDB_MODE=disabled` is set automatically by the runner.
+
+## Reproduce the committed results exactly
+
+Training is seeded with `TF_DETERMINISTIC_OPS` + op determinism enabled, so on the
+same setup these commands regenerate the committed `results/*.json` **bit-for-bit**
+(verified). The committed set was built from two configs during exploration:
+
+```bash
+# (1) single-seed probes at mild & extreme sparsity  (8-epoch budget -> 7 eval points)
+python sparse_pendulum/run_sparsity_experiment.py \
+    --bands 0.1 0.02 --arms qlevel reward --seeds 1 --epochs 8 \
+    --steps-per-epoch 1000 --start-steps 500
+
+# (2) the headline comparison at band=0.05, 6 seeds  (6-epoch budget -> 5 eval points)
+python sparse_pendulum/run_sparsity_experiment.py \
+    --bands 0.05 --arms qlevel reward --seeds 6 --epochs 6 \
+    --steps-per-epoch 1000 --start-steps 500
+
+# (3) figures from the JSONs
+python sparse_pendulum/plot_results.py
+
+# (4) the deterministic, training-free mechanism figure
+python sparse_pendulum/mechanism.py
+```
+
+(`band0.05_seeds.png` is a per-seed composite figure; the reproducible figures are
+`learning_curves.png`, `per_seed_outcomes.png` and `mechanism.png`.)
+
+## Run the fuller study
+
+The committed numbers are a short, CPU-budget **smoke check**, not
+publication-grade. For a defensible result, run one consistent sweep with many
+seeds, a fine band ladder, the smoothing baseline, the linear-composition
+ablation, and a real training budget (ideally on GPU):
+
+```bash
 python sparse_pendulum/run_sparsity_experiment.py \
     --bands 0.15 0.1 0.07 0.05 0.03 0.02 0.01 \
     --arms qlevel qlevel_linear reward reward_slack --seeds 15 --epochs 150
 python sparse_pendulum/plot_results.py
 ```
 
-Arms: `qlevel` (geomean at the Q level, the proposed method), `reward` /
-`reward_slack` (geomean at the reward level, slack 0 / 0.1), and `qlevel_linear`
-— an **ablation** that composes the Q-values *linearly* (`p=1`) instead of with
-the geomean, to separate "compose at the Q level" from "the non-linear AND."
+## Honest caveats
 
-## Mechanism — why it helps (training-free)
-
-```bash
-python sparse_pendulum/mechanism.py    # writes results/mechanism.png
-```
-
-This probes *why* the Q level helps, without training anything. It rolls out a
-uniform-random policy (an early replay buffer) and measures the learning signal
-each composition would hand the learner: the reward-level scalar
-`geomean(angle, actuation)` vs the Q-level proxy `geomean(FV_angle, FV_actuation)`,
-where `FV_k` is the normalized discounted return-to-go of objective `k`.
-
-The result (`mechanism.png`): the **reward-level** signal is non-zero only when
-the binary objective fires *this step*, so it exactly tracks the raw "fraction of
-the buffer with 1s" and **collapses toward 0 as the band shrinks** (~0.1% of
-transitions at ±1°). The **Q-level** signal stays dense (~7% at ±1°) because the
-discounted return spreads each rare upright event back across the states that
-lead to it. The density advantage grows from **~3× at ±54° to ~46× at ±1°** — the
-sparser the objective, the more composing-later helps. That is the quantity that
-explains the success-rate gap.
-
-`wandb` is set to `disabled` automatically; the BPG core also needs `tensorboard`
-installed (it writes `tf.summary` logs). Every arm is scored by the **same**
-evaluation — fraction of time upright, mean actuation, and their geomean — so the
-comparison is on the true objectives regardless of how each arm was trained.
-Results are written to `results/*.json`; `plot_results.py` makes the figures.
-
-## Results (preliminary)
-
-Verified end-to-end under TensorFlow-CPU. These are **short, CPU-budget** runs
-(6 epochs ≈ 6k env steps each) — directional, not publication-grade — committed
-under `results/` with the figures (`learning_curves.png`, `per_seed_outcomes.png`, `band0.05_seeds.png`):
-
-| band (sparsity) | seeds | Q-level learns | reward-level learns |
-|---|---|---|---|
-| 0.10 (mild)   | 1 | yes | yes (top is hit often → reward gets signal) |
-| **0.05**      | **6** | **5 / 6** | **3 / 6** |
-| 0.02 (extreme)| 1 | yes (late) | yes (late, noisy) |
-
-"learns" = greedy policy reaches >50% time-upright within the 6-epoch budget.
-
-**Reading it honestly:**
-
-- The hypothesis holds *directionally* in the right regime: at `band = 0.05`
-  the Q-level arm is **more sample-efficient / reliable** (5/6 vs 3/6 within the
-  same budget), and its mean learning curve is clearly above the reward-level
-  arm's (see `learning_curves.png`).
-- But it is a **reliability/efficiency edge, not a clean "impossible" gap.** On
-  the pendulum the top is visited often enough during exploration that the
-  reward-level geomean usually gets *some* upright samples and frequently
-  recovers — so reward-level still learns about half the time. This matches the
-  paper's framing (a sample-efficiency improvement) rather than the degenerate
-  "0 everywhere" extreme.
-- 5/6 vs 3/6 on 6 seeds is **suggestive, not significant.** A defensible claim
-  needs the "fuller study" command (more seeds, the band sweep, and the paper's
-  long training budget) run in your conda/nix env — ideally on GPU.
-
-## Caveats
-
-`wandb` is auto-disabled; the BPG core also imports `tensorboard` (for
-`tf.summary`) and the plots need `matplotlib` — all present in the repo's
-conda/nix env. Background training was unstable in the sandbox used to verify
-this (processes were signal-killed mid-run), so the committed numbers came from
-short foreground runs; this is an environment quirk, not a code issue.
+- The effect is a **reliability/sample-efficiency** edge, not "reward-level is
+  impossible" — pendulum's top is visited often enough that reward-level usually
+  recovers given enough exploration. This matches the paper's framing (a
+  sample-efficiency improvement; up to 500% vs SAC on the full benchmarks), not
+  the degenerate "0 everywhere" extreme.
+- **5/6 vs 3/6 on 6 seeds is suggestive, not significant.** The fuller study is
+  what turns this into a curve with error bars.
+- Background training was signal-killed in the sandbox used to verify this, so the
+  committed numbers came from short **foreground** runs — an environment quirk,
+  not a code issue.
