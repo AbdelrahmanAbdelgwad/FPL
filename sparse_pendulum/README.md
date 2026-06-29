@@ -138,9 +138,14 @@ above are `learning_curves.png`, `per_seed_outcomes.png`, and `mechanism.png`.
 ```bash
 python sparse_pendulum/run_sparsity_experiment.py \
     --bands 0.15 0.1 0.07 0.05 0.03 0.02 0.01 \
-    --arms qlevel qlevel_linear reward reward_slack --seeds 15 --epochs 150
+    --arms qlevel qlevel_linear reward reward_slack --seeds 20 --epochs 150
 python sparse_pendulum/plot_results.py
 ```
+
+`--seed-start N` offsets the first seed and `--skip-existing` skips
+already-computed `(arm, band, seed)` files, so the sweep can be split across
+several machines/runs and resumed (e.g. `--seed-start 0 --seeds 10` then
+`--seed-start 10 --seeds 10`).
 
 ## Scope of the committed runs
 

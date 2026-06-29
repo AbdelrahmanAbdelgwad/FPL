@@ -107,21 +107,29 @@ def main():
     parser.add_argument("--arms", nargs="+", default=["qlevel", "reward"],
                         choices=["qlevel", "qlevel_linear", "reward", "reward_slack"])
     parser.add_argument("--seeds", type=int, default=1)
+    parser.add_argument("--seed-start", type=int, default=0,
+                        help="first seed index (lets you accumulate seeds across runs)")
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--steps-per-epoch", type=int, default=1000)
     parser.add_argument("--start-steps", type=int, default=1000)
+    parser.add_argument("--skip-existing", action="store_true",
+                        help="don't recompute a (arm, band, seed) whose json already exists")
     args = parser.parse_args()
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
-    print(f"bands={args.bands} arms={args.arms} seeds={args.seeds} "
+    seeds = range(args.seed_start, args.seed_start + args.seeds)
+    print(f"bands={args.bands} arms={args.arms} seeds={list(seeds)} "
           f"epochs={args.epochs} steps/epoch={args.steps_per_epoch}\n")
 
     for band in args.bands:
         for arm in args.arms:
-            for seed in range(args.seeds):
+            for seed in seeds:
+                out = os.path.join(RESULTS_DIR, f"{arm}_band{band}_seed{seed}.json")
+                if args.skip_existing and os.path.exists(out):
+                    print(f"  -> skip existing {out}", flush=True)
+                    continue
                 curve = train_arm(arm, band, seed, args.epochs, args.steps_per_epoch,
                                   args.start_steps)
-                out = os.path.join(RESULTS_DIR, f"{arm}_band{band}_seed{seed}.json")
                 with open(out, "w") as f:
                     json.dump({"arm": arm, "band": band, "seed": seed, "curve": curve}, f, indent=2)
                 print(f"  -> saved {out}\n", flush=True)
