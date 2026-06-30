@@ -63,26 +63,27 @@ Q/reward density ratio.
 
 ## Results
 
-### `band = 0.05` (±9°), 20 seeds, 8-epoch budget
+20 seeds per arm, 8-epoch budget. "solved" = greedy policy reaches >0.5 time
+upright; "mean" = mean over seeds of each seed's best fraction upright.
 
-| arm | reach >0.5 | mean best fraction upright | median |
-|---|---|---|---|
-| `qlevel` | 16 / 20 | 0.766 | 0.92 |
-| `reward` | 16 / 20 | 0.766 | 0.94 |
+| band | cone | `qlevel` solved | `reward` solved | `qlevel` mean | `reward` mean |
+|---|---|---|---|---|---|
+| 0.05 | ±9°   | 16 / 20 | 16 / 20 | 0.766 | 0.766 |
+| 0.02 | ±3.6° | 15 / 20 | 15 / 20 | 0.703 | 0.704 |
+| 0.01 | ±1.8° | 10 / 20 | 6 / 20  | 0.475 | 0.285 |
 
-Both arms have the same success rate and mean, with the same bimodal split (≈16
-seeds reach ~0.9, ≈4 fail near 0). At 6 seeds the counts were 5/6 vs 3/6; that
-gap did not survive at 20 seeds.
+(`band = 0.1` / ±18° is a single seed: both reach ~0.95.)
 
-![per-seed traces and outcomes at band 0.05](results/per_seed_band.png)
+- At ±9° and ±3.6° the two arms are indistinguishable (same success count, same
+  mean, same bimodal split: most seeds reach ~0.9, a few fail near 0).
+- At ±1.8° `qlevel` reaches 10/20 vs `reward` 6/20 (means 0.475 vs 0.285). A
+  two-proportion z-test on the success rates gives z = 1.29, p = 0.20 — not
+  significant at 20 seeds.
+- With 6 seeds, `band = 0.05` had shown 5/6 vs 3/6; that gap did not survive at 20.
 
-### Across bands
-
-`band = 0.1` (±18°): both arms reach ~0.95 (1 seed). `band = 0.02` (±3.6°): both
-reach ~0.93, later (1 seed).
-
+![per-seed traces and outcomes at the sparsest band](results/per_seed_band.png)
+![per-seed outcomes across bands](results/per_seed_outcomes.png)
 ![learning curves](results/learning_curves.png)
-![per-seed outcomes](results/per_seed_outcomes.png)
 
 ### Mechanism (`mechanism.png`)
 
@@ -117,14 +118,15 @@ same setup these regenerate the committed `results/*.json` bit-for-bit. All runs
 use an 8-epoch budget:
 
 ```bash
-# (1) band 0.05, 20 seeds  (run as one command, or batch with --seed-start / --skip-existing)
+# (1) bands 0.05, 0.02, 0.01 at 20 seeds  (batch with --seed-start / --skip-existing
+#     if your machine can't run a band in one sitting)
 python sparse_pendulum/run_sparsity_experiment.py \
-    --bands 0.05 --arms qlevel reward --seeds 20 --epochs 8 \
+    --bands 0.05 0.02 0.01 --arms qlevel reward --seeds 20 --epochs 8 \
     --steps-per-epoch 1000 --start-steps 500
 
-# (2) bands 0.1 and 0.02, 1 seed each
+# (2) band 0.1, 1 seed
 python sparse_pendulum/run_sparsity_experiment.py \
-    --bands 0.1 0.02 --arms qlevel reward --seeds 1 --epochs 8 \
+    --bands 0.1 --arms qlevel reward --seeds 1 --epochs 8 \
     --steps-per-epoch 1000 --start-steps 500
 
 # (3) figures from the JSONs
@@ -153,7 +155,8 @@ several machines/runs and resumed (e.g. `--seed-start 0 --seeds 10` then
 
 ## Scope of the committed runs
 
-20 seeds at `band = 0.05`; 1 seed at `bands = 0.1, 0.02`; 8-epoch budget
-(≈ 8k env steps per run). The `band = 0.05` comparison has the seed count; the
-0.1/0.02 bands are single-seed. Run the consistent sweep above (more bands, the
-ablation, longer budget) for the full picture.
+20 seeds at `bands = 0.05, 0.02, 0.01`; 1 seed at `band = 0.1`; 8-epoch budget
+(≈ 8k env steps per run). The ±1.8° difference is suggestive but underpowered at
+20 seeds (p = 0.20); confirming or ruling it out needs more seeds (and the
+consistent sweep above adds the `reward_slack` and `qlevel_linear` arms and a
+longer budget).

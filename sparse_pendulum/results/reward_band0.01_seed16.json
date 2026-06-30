@@ -1,0 +1,56 @@
+{
+  "arm": "reward",
+  "band": 0.01,
+  "seed": 16,
+  "curve": [
+    {
+      "angle_frac": 0.009999999776482582,
+      "actuation": 0.2316841334104538,
+      "geomean": 0.048133577493461865,
+      "epoch": 1,
+      "steps": 1000
+    },
+    {
+      "angle_frac": 0.012500000186264515,
+      "actuation": 0.2213304191827774,
+      "geomean": 0.0525987669153063,
+      "epoch": 2,
+      "steps": 2000
+    },
+    {
+      "angle_frac": 0.0,
+      "actuation": 0.7558738589286804,
+      "geomean": 0.0,
+      "epoch": 3,
+      "steps": 3000
+    },
+    {
+      "angle_frac": 0.0,
+      "actuation": 0.7715677618980408,
+      "geomean": 0.0,
+      "epoch": 4,
+      "steps": 4000
+    },
+    {
+      "angle_frac": 0.0,
+      "actuation": 0.6971827149391174,
+      "geomean": 0.0,
+      "epoch": 5,
+      "steps": 5000
+    },
+    {
+      "angle_frac": 0.019999999552965164,
+      "actuation": 0.6907460689544678,
+      "geomean": 0.11753689237980473,
+      "epoch": 6,
+      "steps": 6000
+    },
+    {
+      "angle_frac": 0.0,
+      "actuation": 0.5925500392913818,
+      "geomean": 0.0,
+      "epoch": 7,
+      "steps": 7000
+    }
+  ]
+}

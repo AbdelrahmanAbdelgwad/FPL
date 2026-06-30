@@ -56,7 +56,9 @@ def plot_per_seed_band(runs, arms, path):
     counts = {}
     for (band, _arm), curves in runs.items():
         counts[band] = counts.get(band, 0) + len(curves)
-    band = max(counts, key=counts.get)
+    # among the most-sampled bands, show the sparsest (where any effect is largest)
+    most = max(counts.values())
+    band = min(b for b in counts if counts[b] == most)
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
     rng = np.random.default_rng(0)
     for i, arm in enumerate(arms):
