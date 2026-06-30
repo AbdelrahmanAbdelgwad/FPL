@@ -50,6 +50,46 @@ def mean_curve(curves, key):
     return np.array(steps), np.array(series)
 
 
+def plot_per_seed_band(runs, arms, path):
+    """Per-seed learning traces (thin) + mean (thick) + outcome strip, for the
+    band with the most seeds. Shows the per-seed distribution, not just the mean."""
+    counts = {}
+    for (band, _arm), curves in runs.items():
+        counts[band] = counts.get(band, 0) + len(curves)
+    band = max(counts, key=counts.get)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+    rng = np.random.default_rng(0)
+    for i, arm in enumerate(arms):
+        if (band, arm) not in runs:
+            continue
+        curves = runs[(band, arm)]
+        n_solved = sum(max(e["angle_frac"] for e in c) > 0.5 for c in curves)
+        for c in curves:
+            ax1.plot([e["steps"] for e in c], [e["angle_frac"] for e in c],
+                     color=ARM_COLORS[arm], alpha=0.18, lw=1)
+        x, m = mean_curve(curves, "angle_frac")
+        ax1.plot(x, m, color=ARM_COLORS[arm], lw=3,
+                 label=f"{ARM_LABELS[arm]}  ({n_solved}/{len(curves)} solve)")
+        finals = [max(e["angle_frac"] for e in c) for c in curves]
+        ax2.scatter(np.full(len(finals), i) + rng.uniform(-0.08, 0.08, len(finals)),
+                    finals, color=ARM_COLORS[arm], s=55, zorder=3)
+        ax2.scatter([i], [np.mean(finals)], color="black", marker="_", s=700, zorder=4)
+    for ax in (ax1, ax2):
+        ax.axhline(0.5, ls="--", color="0.6", lw=1)
+        ax.grid(alpha=0.3)
+    ax1.set_xlabel("environment steps"); ax1.set_ylabel("fraction of time upright")
+    ax1.set_title(f"band = {band} (±{band*180:.0f}°): every seed (thin) + mean (thick)")
+    ax1.legend(fontsize=8)
+    ax2.set_xticks(range(len(arms)))
+    ax2.set_xticklabels([ARM_LABELS[a].split(" (")[0] for a in arms], fontsize=8)
+    ax2.set_ylim(0, 1); ax2.set_ylabel("best fraction upright (per seed)  — = mean")
+    ax2.set_title(f"band = {band}: per-seed outcomes")
+    fig.tight_layout()
+    fig.savefig(path, dpi=130)
+    plt.close(fig)
+    return band
+
+
 def main():
     runs = load()
     if not runs:
@@ -116,7 +156,10 @@ def main():
     fig.savefig(out2, dpi=130)
     plt.close(fig)
 
-    print(f"Saved {out1}\n      {out2}")
+    out3 = os.path.join(RESULTS_DIR, "per_seed_band.png")
+    plot_per_seed_band(runs, arms, out3)
+
+    print(f"Saved {out1}\n      {out2}\n      {out3}")
 
 
 if __name__ == "__main__":

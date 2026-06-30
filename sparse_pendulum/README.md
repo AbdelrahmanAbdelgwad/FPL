@@ -63,14 +63,18 @@ Q/reward density ratio.
 
 ## Results
 
-### `band = 0.05` (±9°), 6 seeds
+### `band = 0.05` (±9°), 20 seeds, 8-epoch budget
 
-| | per-seed best fraction upright (seed 0–5) | reach >0.5 |
-|---|---|---|
-| `qlevel` | 0.93, 0.88, 0.94, 0.94, 0.13, 0.89 | 5 / 6 |
-| `reward` | 0.06, 0.20, 0.94, 0.94, 0.09, 0.94 | 3 / 6 |
+| arm | reach >0.5 | mean best fraction upright | median |
+|---|---|---|---|
+| `qlevel` | 16 / 20 | 0.766 | 0.92 |
+| `reward` | 16 / 20 | 0.766 | 0.94 |
 
-![per-seed outcomes at band 0.05](results/band0.05_seeds.png)
+Both arms have the same success rate and mean, with the same bimodal split (≈16
+seeds reach ~0.9, ≈4 fail near 0). At 6 seeds the counts were 5/6 vs 3/6; that
+gap did not survive at 20 seeds.
+
+![per-seed traces and outcomes at band 0.05](results/per_seed_band.png)
 
 ### Across bands
 
@@ -109,18 +113,18 @@ pip install wandb tensorboard           # if not already in the env
 ## Reproduce the committed results
 
 Training is seeded with `TF_DETERMINISTIC_OPS` and op determinism enabled; on the
-same setup these regenerate the committed `results/*.json` bit-for-bit. The
-committed set comes from two configurations:
+same setup these regenerate the committed `results/*.json` bit-for-bit. All runs
+use an 8-epoch budget:
 
 ```bash
-# (1) bands 0.1 and 0.02, 1 seed, 8-epoch budget
+# (1) band 0.05, 20 seeds  (run as one command, or batch with --seed-start / --skip-existing)
 python sparse_pendulum/run_sparsity_experiment.py \
-    --bands 0.1 0.02 --arms qlevel reward --seeds 1 --epochs 8 \
+    --bands 0.05 --arms qlevel reward --seeds 20 --epochs 8 \
     --steps-per-epoch 1000 --start-steps 500
 
-# (2) band 0.05, 6 seeds, 6-epoch budget
+# (2) bands 0.1 and 0.02, 1 seed each
 python sparse_pendulum/run_sparsity_experiment.py \
-    --bands 0.05 --arms qlevel reward --seeds 6 --epochs 6 \
+    --bands 0.1 0.02 --arms qlevel reward --seeds 1 --epochs 8 \
     --steps-per-epoch 1000 --start-steps 500
 
 # (3) figures from the JSONs
@@ -130,8 +134,8 @@ python sparse_pendulum/plot_results.py
 python sparse_pendulum/mechanism.py
 ```
 
-`band0.05_seeds.png` is a per-seed composite; the figures produced by the scripts
-above are `learning_curves.png`, `per_seed_outcomes.png`, and `mechanism.png`.
+`plot_results.py` writes `learning_curves.png`, `per_seed_outcomes.png`, and
+`per_seed_band.png`; `mechanism.py` writes `mechanism.png`.
 
 ## A consistent sweep (more seeds, more bands, longer budget)
 
@@ -149,6 +153,7 @@ several machines/runs and resumed (e.g. `--seed-start 0 --seeds 10` then
 
 ## Scope of the committed runs
 
-6 seeds at `band = 0.05`; 1 seed at `bands = 0.1, 0.02`; short CPU training budget
-(6–8 epochs ≈ 6k–8k env steps per run). Run the consistent sweep above for results
-with more seeds and a longer budget.
+20 seeds at `band = 0.05`; 1 seed at `bands = 0.1, 0.02`; 8-epoch budget
+(≈ 8k env steps per run). The `band = 0.05` comparison has the seed count; the
+0.1/0.02 bands are single-seed. Run the consistent sweep above (more bands, the
+ablation, longer budget) for the full picture.
