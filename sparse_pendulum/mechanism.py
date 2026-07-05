@@ -104,32 +104,41 @@ def main():
         frac_r.append(fr); frac_q.append(fq); std_r.append(dr); std_q.append(dq); fire.append(fire_frac)
         print(f"{b:>7}{b*180:>6.0f}{fire_frac*100:>12.1f}%{fr*100:>13.1f}%{fq*100:>9.1f}%{dr:>12.4f}{dq:>9.4f}")
 
+    # Colorblind-safe pair (validated): blue = Q-level, orange = reward-level.
+    plt.rcParams.update({
+        "figure.dpi": 200, "savefig.dpi": 200, "font.size": 11,
+        "axes.titlesize": 12, "axes.spines.top": False, "axes.spines.right": False,
+        "axes.grid": True, "grid.alpha": 0.25, "grid.linewidth": 0.6,
+        "legend.frameon": False,
+    })
     x = np.array(bands)
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-    ax1.plot(x, np.array(frac_r) * 100, "o-", color="#d62728", lw=2, label="reward-level signal")
-    ax1.plot(x, np.array(frac_q) * 100, "o-", color="#2ca02c", lw=2, label="Q-level signal (returns)")
-    ax1.plot(x, np.array(fire) * 100, "s--", color="0.5", lw=1.5, label="raw '1's in buffer (angle fires)")
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5), layout="constrained")
+    ax1.plot(x, np.array(frac_q) * 100, "o-", color="#2a78d6", lw=2, ms=6,
+             mec="white", mew=0.7, label="Q-level signal (returns)")
+    ax1.plot(x, np.array(frac_r) * 100, "o-", color="#eb6834", lw=2, ms=6,
+             mec="white", mew=0.7, label="reward-level signal")
+    ax1.plot(x, np.array(fire) * 100, "s--", color="0.5", lw=1.5, ms=5,
+             label="raw '1's in buffer (angle fires)")
     ax1.set_xscale("log"); ax1.invert_xaxis()
     ax1.set_xlabel("band  (sparser →, log scale)")
     ax1.set_ylabel("% of transitions with a non-zero learning signal")
-    ax1.set_title("Reward-level signal vanishes with sparsity; Q-level stays dense")
-    ax1.grid(alpha=0.3, which="both"); ax1.legend()
+    ax1.set_title("Reward-level signal vanishes with sparsity;\nQ-level stays dense")
+    ax1.grid(which="both"); ax1.legend(fontsize=9)
 
     ratio = np.array(frac_q) / np.maximum(np.array(frac_r), 1e-9)
-    ax2.plot(x, ratio, "o-", color="#1f77b4", lw=2)
+    ax2.plot(x, ratio, "o-", color="#2a78d6", lw=2, ms=6, mec="white", mew=0.7)
     ax2.set_xscale("log"); ax2.set_yscale("log"); ax2.invert_xaxis()
     ax2.set_xlabel("band  (sparser →, log scale)")
     ax2.set_ylabel("Q-level signal density ÷ reward-level density")
-    ax2.set_title("The sparser the objective, the bigger the Q-level advantage")
-    ax2.grid(alpha=0.3, which="both")
+    ax2.set_title("The sparser the objective,\nthe bigger the Q-level advantage")
+    ax2.grid(which="both")
     for xi, ri in zip(x, ratio):
-        ax2.annotate(f"{ri:.0f}×", (xi, ri), textcoords="offset points", xytext=(0, 7),
-                     ha="center", fontsize=8)
+        ax2.annotate(f"{ri:.0f}×", (xi, ri), textcoords="offset points", xytext=(0, 8),
+                     ha="center", fontsize=9, color="0.25")
 
-    fig.suptitle("Mechanism: where does the learning signal go as the objective gets sparse?", fontsize=12)
-    fig.tight_layout(rect=(0, 0, 1, 0.96))
+    fig.suptitle("Mechanism: where does the learning signal go as the objective gets sparse?")
     out = os.path.join(RESULTS_DIR, "mechanism.png")
-    fig.savefig(out, dpi=130)
+    fig.savefig(out)
     plt.close(fig)
     print(f"\nSaved {out}")
 
